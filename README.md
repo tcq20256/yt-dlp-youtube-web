@@ -1,10 +1,10 @@
 # yt-dlp-youtube-web
 
-需要验证Cookie
+需要验证 Cookie 下载插件 Export All Cookies
 
-[https://chromewebstore.google.com/Get cookies](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+- [https://chromewebstore.google.com/Get cookies](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
 
-Export All Cookies
+- [https://github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp)
 
 ###  使用 Railway 部署
 
