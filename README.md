@@ -10,7 +10,7 @@
 
 
 
-###  使用 Railway 部署
+###  推荐 Railway 部署
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.com?referralCode=iqfVhM)
 
