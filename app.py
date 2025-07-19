@@ -256,9 +256,9 @@ a.download-link:hover {
      style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
     项目地址
   </a>
-  <a href="https://cloud.tencent.com/act/cps/redirect?redirect=37424&cps_key=615609c54e8bcced8b02c202a43b5570" target="_blank"
+  <a href="https://cloud.tencent.com/act/cps/redirect?redirect=33387&cps_key=615609c54e8bcced8b02c202a43b5570" target="_blank"
      style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
-    域名支持
+    域名注册
   </a>
 </div>
 
