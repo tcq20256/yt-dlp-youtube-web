@@ -247,7 +247,17 @@ a.download-link:hover {
       <label>或者直接在这里输入视频链接（多行，每行一个链接）：</label>
       <textarea name="linktextarea" placeholder="https://www.youtube.com/watch?v=..." ></textarea>
       
-      <button type="submit">开始解析链接</button>
+      <button type="submit">开始解析链接</button> <button type="submit">开始解析链接</button>
+<div style="text-align:center; margin-top:12px;">
+<a href="https://github.com/tcq20256/yt-dlp-youtube-web" target="_blank"
+style="margin-right:24px; font-size:14px; color:#3b82f6; text-decoration:none; vertical-align: middle;">
+项目地址
+</a>
+<a href="https://railway.com/?referralCode=iqfVhM" target="_blank"
+style="font-size:14px; color:#3b82f6; text-decoration:none; vertical-align: middle;">
+服务支持
+</a>
+</div>
     </form>
     {% with messages = get_flashed_messages() %}
       {% if messages %}
