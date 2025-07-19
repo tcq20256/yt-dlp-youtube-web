@@ -234,7 +234,6 @@ a.download-link:hover {
 </head>
 <body>
   <div class="container">
-    <h1>批量YouTube视频解析下载</h1>
     <form method="post" enctype="multipart/form-data">
       <label>
 上传<a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" style="margin-left:8px; font-size:14px; color:#3b82f6; text-decoration:none;">Cookie</a> 文件（仅限txt，最大100K，选填）：</label>
