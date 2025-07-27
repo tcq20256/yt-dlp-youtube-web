@@ -57,150 +57,143 @@ PAGE_TEMPLATE = '''
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>YouTube 多功能解析器</title>
   <style>
+    :root {
+      --primary-color: #3b82f6;
+      --primary-hover: #2563eb;
+      --bg-light: #f5f7fa;
+      --text-dark: #333;
+      --container-max: 800px;
+      --radius: 12px;
+      --spacing: 16px;
+      --shadow-light: rgba(0,0,0,0.08);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-      background: #f5f7fa;
-      margin: 20px;
-      color: #333;
-      text-align: center;
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      background: var(--bg-light); color: var(--text-dark); line-height: 1.5;
     }
-    .container {
-      max-width: 720px;
-      margin: 0 auto;
-      background: #fff;
-      padding: 24px 28px;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgb(0 0 0 / 0.08);
-    }
-    h1 {
-      font-weight: 700;
-      font-size: 26px;
-      margin-bottom: 20px;
+    header { text-align: center; padding: var(--spacing) 0; }
+    header h1 { margin: 0; font-size: 1.75rem; font-weight: 700; }
+    main { display: flex; justify-content: center; padding: var(--spacing); }
+    .card {
+      width: 90%; max-width: var(--container-max);
+      background: #fff; padding: calc(var(--spacing)*1.5);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 30px var(--shadow-light);
     }
     form {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-bottom: 24px;
+      display: flex; flex-direction: column; gap: var(--spacing);
     }
-    label {
-      font-size: 16px;
-      color: #555;
-      text-align: left;
-      margin-left: 10px;
+    label { font-size: 1rem; color: #555; }
+    input[type="file"], textarea {
+      width: 100%; padding: 8px 12px;
+      border: 2px solid var(--primary-color);
+      border-radius: 8px; font-size: 1rem; resize: vertical;
     }
-    input[type=file], textarea {
-      width: 100%;
-      padding: 8px 12px;
-      border: 2px solid #3b82f6;
-      border-radius: 8px;
-      outline: none;
-      resize: vertical;
-      font-size: 16px;
-      box-sizing: border-box;
+    textarea { min-height: 120px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px 20px; font-size: 1rem; font-weight: 600;
+      color: #fff; background: var(--primary-color);
+      border: none; border-radius: 10px;
+      cursor: pointer; text-decoration: none;
+      box-shadow: 0 3px 10px var(--shadow-light);
+      transition: background-color 0.3s;
     }
-    textarea {
-      height: 120px;
+    .btn:hover, .btn:focus { background: var(--primary-hover); }
+    .downloads {
+      display: grid; row-gap: calc(var(--spacing)*2);
+      margin-top: calc(var(--spacing)*2);
     }
-    .download-btn {
-      background-color: #3b82f6;
-      color: white;
-      border-radius: 10px;
-      padding: 14px 22px;
-      font-size: 15px;
-      font-weight: 600;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      box-shadow: 0 3px 10px rgb(59 130 246 / 0.45);
-      transition: background-color 0.3s ease;
-      user-select: none;
-      cursor: pointer;
-      border: none;
-      margin: 8px;
+    .download-group {
+      display: flex; flex-direction: column;
+      gap: var(--spacing);
     }
-    .download-btn:hover {
-      background-color: #2563eb;
+    .download-group h3 {
+      margin: 0; font-size: 1.1rem; color: var(--text-dark);
     }
-    .btn-grid {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 14px 18px;
-      margin-top: 20px;
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 14px;
     }
-    .no-audio-icon {
-      font-size: 16px;
-      color: #f87171;
-      margin-left: 4px;
+    @media(max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+      .btn { padding: 10px 16px; font-size: 0.9rem; }
     }
-    .error {
-      color: #dc2626;
-      margin-bottom: 16px;
-    }
-    @media (max-width: 600px) {
-      .container { padding: 16px; }
-      h1 { font-size: 22px; }
+    .error { color: #dc2626; font-weight: bold; text-align: center; margin-bottom: var(--spacing); }
+    img.thumbnail {
+      display: block; width: 100%; max-width: 320px;
+      margin: var(--spacing) auto;
+      border-radius: var(--radius);
+      box-shadow: 0 6px 12px var(--shadow-light);
     }
   </style>
 </head>
 <body>
-  <h1>YouTube 多功能解析器</h1>
-  <div class="container">
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <div class="error">{{ messages[0] }}</div>
+  <header>
+    <h1>YouTube 多功能解析器</h1>
+  </header>
+  <main>
+    <div class="card" role="region" aria-live="polite">
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="error" role="alert">{{ messages[0] }}</div>
+        {% endif %}
+      {% endwith %}
+      <form method="post" enctype="multipart/form-data" novalidate>
+        <fieldset>
+          <legend>上传 Cookie（可选，.txt，最大300KB）</legend>
+          <label for="cookiefile">选择 Cookie 文件：</label>
+          <input id="cookiefile" type="file" name="cookiefile" accept=".txt" />
+        </fieldset>
+        <fieldset>
+          <legend>视频链接（多行，每行一个链接）</legend>
+          <label for="linktextarea" class="sr-only">视频链接</label>
+          <textarea id="linktextarea" name="linktextarea" placeholder="https://www.youtube.com/watch?v=...">{{ request.form.linktextarea or '' }}</textarea>
+        </fieldset>
+        <button type="submit" class="btn">开始解析</button>
+      </form>
+
+      {% if info %}
+      <section class="downloads">
+        <div class="download-group">
+          <h3>下载视频</h3>
+          <div class="grid">
+            <a class="btn" href="{{ info.url }}" target="_blank" rel="noopener">⬇️ 最佳画质</a>
+            {% for f in formats if f.vcodec!='none' %}
+            <a class="btn" href="{{ f.url }}" target="_blank" rel="noopener" download>
+              {{ f.format_note or f.format }}
+              {% if f.filesize %}( {{ (f.filesize/1048576)|round(2) }}MB ){% endif %}
+              {% if f.acodec=='none' %}<span aria-label="无音频">🔇</span>{% endif %}
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="download-group">
+          <h3>下载音频</h3>
+          <div class="grid">
+            {% for f in formats if f.vcodec=='none' and f.acodec!='none' %}
+            <a class="btn" href="{{ f.url }}" target="_blank" rel="noopener" download>
+              {{ f.format_note or f.format }}
+              {% if f.filesize %}( {{ (f.filesize/1048576)|round(2) }}MB ){% endif %}
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
       {% endif %}
-    {% endwith %}
-    <form method="post" enctype="multipart/form-data">
-      <label>上传 Cookie 文件（可选，.txt，最大300KB）：</label>
-      <input type="file" name="cookiefile" accept=".txt" />
-      <label>请输入视频链接（多行，每行一个链接）：</label>
-      <textarea name="linktextarea" placeholder="https://www.youtube.com/watch?v=...">{{ request.form.linktextarea or '' }}</textarea>
-      <button type="submit" class="download-btn">开始解析</button>
-    </form>
 
-    {% if info %}
-      <h2>解析结果</h2>
-      <div class="container">
-        <h2>{{ info.title }}</h2>
-        <img src="{{ info.thumbnail }}" alt="视频封面" />
-        <div class="btn-grid">
-          <button class="download-btn" onclick="window.open('{{ info.url }}', '_blank')">⬇️ 下载视频（自动选择最佳画质）</button>
-          <button class="download-btn" onclick="window.open('{{ info.thumbnail }}', '_blank')">🖼️ 下载封面</button>
-        </div>
-        <h3 style="margin-top:30px;">更多视频分辨率下载选项</h3>
-        <div class="btn-grid">
-          {% for f in formats %}
-            {% if f.vcodec != 'none' %}
-              <a class="download-btn" href="{{ f.url }}" target="_blank" download>
-                {{ f.format_note or f.format }} ({{ f.ext }})
-                {% if f.filesize %} - {{ (f.filesize/1024/1024)|round(2) }}MB{% endif %}
-                {% if f.acodec=='none' %}<span class="no-audio-icon" title="无声音轨">🔇</span>{% endif %}
-              </a>
-            {% endif %}
-          {% endfor %}
-        </div>
-        <h3 style="margin-top:30px;">所有音频格式</h3>
-        <div class="btn-grid">
-          {% for f in formats %}
-            {% if f.vcodec=='none' and f.acodec!='none' %}
-              <a class="download-btn" href="{{ f.url }}" target="_blank" download>
-                {{ f.format_note or f.format }} ({{ f.ext }}){% if f.filesize %} - {{ (f.filesize/1024/1024)|round(2) }}MB{% endif %}
-              </a>
-            {% endif %}
-          {% endfor %}
-        </div>
-      </div>
-    {% endif %}
-
-    {% if download_url %}
-      <h2>批量解析结果</h2>
-      <a class="download-btn" href="{{ download_url }}" download>⬇️ 下载批量解析结果</a>
-    {% endif %}
-  </div>
+      {% if download_url %}
+      <section class="section">
+        <h2>批量解析结果</h2>
+        <a class="btn" href="{{ download_url }}" download>⬇️ 下载全部结果</a>
+      </section>
+      {% endif %}
+    </div>
+  </main>
 </body>
 </html>
 '''
