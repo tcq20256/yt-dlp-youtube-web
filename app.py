@@ -239,10 +239,7 @@ a.download-link:hover {
 上传<a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" style="margin-left:8px; font-size:14px; color:#3b82f6; text-decoration:none;">Cookie</a> 文件（仅限txt，最大100K，选填）：</label>
 
       <input type="file" name="cookiefile" accept=".txt" />
-      
-      <label>上传链接 TXT 文件（每行一个链接，选填）：</label>
-      <input type="file" name="linkfile" accept=".txt" />
-      
+
       <label>或者直接在这里输入视频链接（多行，每行一个链接）：</label>
       <textarea name="linktextarea" placeholder="https://www.youtube.com/watch?v=..." ></textarea>
       
