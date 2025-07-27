@@ -55,7 +55,100 @@ PAGE_TEMPLATE = '''
 <head>
 <meta charset="utf-8" />
 <title>YouTube 多功能解析器</title>
-<style>/* 原有样式省略，保持一致 */</style>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      background: #f5f7fa;
+      margin: 20px;
+      color: #333;
+      text-align: center;
+    }
+    h1 {
+      font-weight: 700;
+      font-size: 26px;
+      margin-bottom: 20px;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 24px 28px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgb(0 0 0 / 0.08);
+    }
+    h2 {
+      font-weight: 700;
+      font-size: 20px;
+      margin-bottom: 16px;
+      word-break: break-word;
+    }
+    img {
+      max-width: 320px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 6px 12px rgb(0 0 0 / 0.08);
+    }
+    .btn-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px 18px;
+      margin-top: 20px;
+    }
+    .download-btn {
+      background-color: #3b82f6;
+      color: white;
+      border-radius: 10px;
+      padding: 14px 22px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 3px 10px rgb(59 130 246 / 0.45);
+      transition: background-color 0.3s ease;
+      user-select: none;
+      cursor: pointer;
+      white-space: nowrap;
+      border: none;
+      min-width: 150px;
+      justify-content: center;
+    }
+    .download-btn:hover {
+      background-color: #2563eb;
+    }
+    .no-audio-icon {
+      font-size: 16px;
+      color: #f87171;
+      user-select: none;
+    }
+    a.back-link {
+      display: inline-block;
+      margin-top: 20px;
+      font-size: 14px;
+      color: #3b82f6;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    a.back-link:hover {
+      text-decoration: underline;
+    }
+    @media (max-width: 600px) {
+      img {
+        max-width: 100%;
+      }
+      .btn-grid {
+        justify-content: center;
+      }
+      .download-btn {
+        min-width: 120px;
+        font-size: 13px;
+        padding: 10px 16px;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="container">
