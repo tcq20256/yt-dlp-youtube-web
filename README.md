@@ -8,11 +8,9 @@
 
 - [https://github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp)
 
-
-
 ###  推荐 Railway 部署
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.com?referralCode=feeday)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.com?referralCode=realfake-top)
 
 
 
