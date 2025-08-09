@@ -245,11 +245,11 @@ a.download-link:hover {
       
       <button type="submit">开始解析链接</button>
 <div style="display: flex; justify-content: center; gap: 24px; margin-top: 12px;">
-  <a href="https://railway.com?referralCode=feeday" target="_blank"
+  <a href="https://railway.com?referralCode=realfake-top" target="_blank"
      style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
     服务支持
   </a>
-  <a href="https://github.com/feeday/yt-dlp-youtube-web" target="_blank"
+  <a href="https://github.com/realfake-top/yt-dlp-youtube-web" target="_blank"
      style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
     项目地址
   </a>
