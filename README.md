@@ -46,9 +46,7 @@ conda activate yt-dlp-web
 git clone https://github.com/tcq20256/yt-dlp-youtube-web.git
 cd yt-dlp-youtube-web
 sudo apt update && sudo apt install -y python3 python3-venv python3-pip ffmpeg
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
 
+pip install -r requirements.txt
 python app.py
 ```
