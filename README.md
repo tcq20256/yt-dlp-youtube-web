@@ -1,6 +1,6 @@
 # 🎬 yt-dlp-youtube-web
 
-基于 **Python Flask** 的 Web 界面封装工具，支持通过 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 下载视频，适配 Cookie 验证，提供简洁易用的网页端体验。  
+基于 **Python Flask** 的 油管视频预览，仅供测试，适配 Cookie 验证。  
 
 ---
 
