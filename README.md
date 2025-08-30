@@ -1,4 +1,5 @@
 # yt-dlp-youtube-web
+- Python 3.9
 
 需要验证 Cookie 下载插件 Export All Cookies
 
