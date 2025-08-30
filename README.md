@@ -34,18 +34,21 @@ chmod +x install.sh
 ```
 
 ### 🛠️ 方法二：手动安装（Centos7.6）
-#### 👉 http://127.0.0.1:5000
 
 ```
 curl -O https://repo.anaconda.com/miniconda/Miniconda3-py39_24.7.1-0-Linux-x86_64.sh
 bash Miniconda3-py39_24.7.1-0-Linux-x86_64.sh
+conda --version
+
+sudo yum install -y git
+git --version
 
 conda create -n yt-dlp-web python=3.9 -y
 conda activate yt-dlp-web
+python -m pip install --upgrade pip
 
 git clone https://github.com/tcq20256/yt-dlp-youtube-web.git
 cd yt-dlp-youtube-web
-sudo apt update && sudo apt install -y python3 python3-venv python3-pip ffmpeg
 
 pip install -r requirements.txt
 python app.py
