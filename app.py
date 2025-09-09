@@ -97,43 +97,105 @@ PAGE = r"""
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>YouTube 解析</title>
 <style>
-body {font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Open Sans","Helvetica Neue",sans-serif;background:#f0f4f8;margin:0;padding:20px;color:#333;}
-.container {max-width:860px;margin:0 auto;background:#fff;padding:28px 30px;border-radius:16px;box-shadow:0 12px 30px rgb(0 0 0 / 0.08);}
-h1 {margin:0 0 16px;font-size:26px;}
-label {display:block;margin:12px 0 6px;color:#555;}
-input[type=file], input[type=text] {width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;border:2px solid #3b82f6;border-radius:10px;outline:none;box-shadow:inset 0 4px 12px rgb(0 0 0 / 0.05);}
-input[type=file]:focus, input[type=text]:focus {border-color:#2563eb;box-shadow:0 0 12px #2563eb;}
-button {display:inline-flex;align-items:center;gap:6px;background:linear-gradient(90deg,#3b82f6 0%,#2563eb 100%);color:#fff;border:0;border-radius:12px;padding:12px 18px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgb(59 130 246 / 0.5);}
-button:hover {background:linear-gradient(90deg,#2563eb 0%,#1e40af 100%);}
-.row {display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;}
-.badge {margin-top:6px;font-size:12px;color:#10b981;}
-.error {margin-top:10px;color:#dc2626;font-weight:600;}
-.card {margin-top:18px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:18px;}
-.center {text-align:center;}
-.btn-row {display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
-.download-btn {background:#3b82f6;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgb(59 130 246 / 0.45);}
-.download-btn:hover {background:#2563eb;}
-.tip {margin-top:8px;font-size:12px;color:#666;}
-.codebox {padding:8px 10px;background:#111827;color:#e5e7eb;border-radius:6px;display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;}
-.thumb {max-width:360px;border-radius:12px;box-shadow:0 6px 12px rgb(0 0 0 / .08);margin:10px auto;display:block;}
-a.link {color:#3b82f6;text-decoration:none;} a.link:hover {text-decoration:underline;}
-.dlmeta {font-size:12px;opacity:.8;margin-left:6px;}
+:root{
+  --brand:#3b82f6;
+  --brand-deep:#2563eb;
+  --bg:#f0f4f8;
+  --card:#ffffff;
+  --text:#222;
+  --muted:#666;
+  --ok:#10b981;
+  --shadow:0 12px 30px rgb(0 0 0 / .08);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; padding:16px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Open Sans","Helvetica Neue",sans-serif;
+  background:var(--bg); color:var(--text);
+}
+.container{
+  max-width:920px; margin:0 auto; background:var(--card);
+  padding:24px 20px; border-radius:16px; box-shadow:var(--shadow);
+}
+h1{margin:0 0 12px; font-size:24px; font-weight:800;}
+label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
+.help{font-size:12px; color:var(--muted); margin-top:6px}
+.badge{font-size:12px; color:var(--ok); margin-top:6px}
+.error{margin-top:10px; color:#dc2626; font-weight:600;}
+
+.input, .file{
+  width:100%; font-size:16px; padding:10px 12px; border:2px solid var(--brand);
+  border-radius:10px; outline:none; background:#fff;
+  box-shadow:inset 0 4px 12px rgb(0 0 0 / .05);
+}
+.input:focus, .file:focus{border-color:var(--brand-deep); box-shadow:0 0 10px var(--brand-deep)}
+
+.row{display:flex; flex-wrap:wrap; gap:12px; margin-top:12px;}
+.btn{
+  appearance:none; border:0; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  border-radius:12px; padding:12px 18px; font-weight:800; text-decoration:none;
+  transition:transform .02s ease, background .2s ease, box-shadow .2s ease;
+  box-shadow:0 6px 18px rgb(59 130 246 / .5);
+}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:linear-gradient(90deg, var(--brand) 0%, var(--brand-deep) 100%); color:#fff}
+.btn-primary:hover{background:linear-gradient(90deg, var(--brand-deep) 0%, #1e40af 100%)}
+.btn-ghost{
+  background:#eef2ff; color:var(--brand-deep); box-shadow:none; border:1px solid #dbeafe;
+}
+.btn-ghost:hover{background:#e0e7ff}
+
+.card{
+  margin-top:16px; background:#f9fafb; border:1px solid #e5e7eb;
+  border-radius:12px; padding:16px;
+}
+.center{text-align:center}
+.thumb{
+  max-width:360px; width:100%; border-radius:12px; box-shadow:0 6px 12px rgb(0 0 0 / .08);
+  margin:10px auto; display:block;
+}
+.btn-row{display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:10px}
+.dlbtn{min-width:220px}
+.tip{margin-top:8px; font-size:12px; color:var(--muted)}
+.codebox{
+  display:inline-block; margin-top:6px; padding:8px 10px; border-radius:6px;
+  background:#111827; color:#e5e7eb; font-family:ui-monospace,Menlo,Consolas,monospace;
+}
+.meta{font-size:12px; opacity:.8; margin-left:6px}
+
+/* —— 响应式优化 —— */
+@media (max-width: 720px){
+  .container{padding:18px 14px; border-radius:14px}
+  h1{font-size:20px}
+  .btn, .dlbtn{width:100%}         /* 小屏按钮满宽度，易点 */
+  .row{gap:10px}
+  .thumb{max-width:100%}
+}
 </style>
 </head>
 <body>
   <div class="container">
     <h1>YouTube 一键解析</h1>
+
     <form method="post" enctype="multipart/form-data">
-      <label>（可选）上传一次 Cookie（txt）：</label>
-      <input type="file" name="cookiefile" accept=".txt" />
+      <label>
+        （可选）上传一次 Cookie（txt）
+        <a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" class="btn btn-ghost" style="padding:6px 10px; border-radius:10px; margin-left:8px; font-weight:700;">
+          获取 Cookie 插件
+        </a>
+      </label>
+      <input class="file" type="file" name="cookiefile" accept=".txt" />
       {% if cookie_ready %}<div class="badge">✅ Cookie 已加载并将自动复用</div>{% endif %}
+      <div class="help">提示：只需上传一次；需要更换时再上传新文件即可。</div>
 
       <label style="margin-top:12px;">输入单个视频链接：</label>
-      <input type="text" name="link" placeholder="https://www.youtube.com/watch?v=..." value="{{ link or '' }}" />
+      <input class="input" type="text" name="link" placeholder="https://www.youtube.com/watch?v=..." value="{{ link or '' }}" inputmode="url" autocapitalize="off" autocomplete="off" autocorrect="off" />
 
       <div class="row">
-        <button type="submit" name="action" value="parse">开始解析</button>
-        <a class="link" href="https://github.com/tcq20256/yt-dlp-youtube-web" target="_blank">项目地址</a>
+        <button type="submit" name="action" value="parse" class="btn btn-primary">开始解析</button>
+        <a class="btn btn-ghost" href="https://github.com/tcq20256/yt-dlp-youtube-web" target="_blank">项目地址</a>
       </div>
 
       {% with messages = get_flashed_messages() %}
@@ -144,38 +206,36 @@ a.link {color:#3b82f6;text-decoration:none;} a.link:hover {text-decoration:under
     {% if info %}
     <div class="card">
       <div class="center">
-        <h2 style="margin:6px 0 8px;">{{ info.title }}</h2>
+        <h2 style="margin:6px 0 8px; font-size:18px">{{ info.title }}</h2>
         <img class="thumb" src="{{ info.thumbnail }}" alt="视频封面" />
       </div>
 
       <div class="btn-row">
         {% if max_video %}
-          <button class="download-btn" onclick="window.open('{{ max_video.url }}', '_blank')">
+          <a class="btn btn-primary dlbtn" href="{{ max_video.url }}" target="_blank" rel="noopener">
             ⬇️ 最高画质·仅视频
-            <span class="dlmeta">({{ (max_video.format_note or (max_video.height ~ 'p')) }} {{ max_video.ext }})</span>
-          </button>
+            <span class="meta">({{ (max_video.format_note or (max_video.height ~ 'p')) }} {{ max_video.ext }})</span>
+          </a>
         {% endif %}
 
         {% if best_av %}
-          <button class="download-btn" onclick="window.open('{{ best_av.url }}', '_blank')">
+          <a class="btn btn-primary dlbtn" href="{{ best_av.url }}" target="_blank" rel="noopener">
             ▶️ 音频+视频（可直接播放）
-            <span class="dlmeta">({{ (best_av.format_note or (best_av.height ~ 'p')) }} {{ best_av.ext }})</span>
-          </button>
+            <span class="meta">({{ (best_av.format_note or (best_av.height ~ 'p')) }} {{ best_av.ext }})</span>
+          </a>
         {% else %}
-          <button class="download-btn" disabled title="未找到可直连的含音轨渐进式">
-            ▶️ 音频+视频（无可直连）
-          </button>
+          <button class="btn btn-ghost dlbtn" disabled title="未找到可直连的含音轨渐进式">▶️ 音频+视频（无可直连）</button>
         {% endif %}
 
         {% if max_audio %}
-          <button class="download-btn" onclick="window.open('{{ max_audio.url }}', '_blank')">
+          <a class="btn btn-primary dlbtn" href="{{ max_audio.url }}" target="_blank" rel="noopener">
             🎵 最高质量·仅音频
-            <span class="dlmeta">({{ (max_audio.abr or max_audio.tbr or '?' ) }}kbps {{ max_audio.ext }})</span>
-          </button>
+            <span class="meta">({{ (max_audio.abr or max_audio.tbr or '?' ) }}kbps {{ max_audio.ext }})</span>
+          </a>
         {% endif %}
       </div>
 
-      <div class="center tip" style="margin-top:10px;">
+      <div class="center tip">
         直链接口带签名，可能数小时内过期；长期可复现请使用命令：
         <div class="codebox">
           {% if max_video and max_video.format_id %}
@@ -187,7 +247,7 @@ a.link {color:#3b82f6;text-decoration:none;} a.link:hover {text-decoration:under
       </div>
 
       <div class="center" style="margin-top:12px;">
-        <button class="download-btn" onclick="window.open('{{ info.thumbnail }}', '_blank')">🖼️ 下载封面</button>
+        <a class="btn btn-ghost" href="{{ info.thumbnail }}" target="_blank" rel="noopener">🖼️ 下载封面</a>
       </div>
     </div>
     {% endif %}
@@ -195,6 +255,7 @@ a.link {color:#3b82f6;text-decoration:none;} a.link:hover {text-decoration:under
 </body>
 </html>
 """
+
 
 # ---------- 路由 ----------
 @app.route("/", methods=["GET", "POST"])
