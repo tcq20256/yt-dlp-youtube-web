@@ -1,6 +1,8 @@
+# app.py
 import subprocess
 import sys
 
+# ===== 可选：自动安装依赖（保留你的写法） =====
 def install_packages():
     packages = [
         "Flask>=2.0.0",
@@ -14,6 +16,7 @@ def install_packages():
         sys.exit(1)
 
 install_packages()
+# ============================================
 
 import os
 import tempfile
@@ -24,10 +27,14 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-app.config['MAX_CONTENT_LENGTH'] = 300 * 1024  # 300KB上传限制
+# 上传大小限制：仅用于 cookie 文本，默认 300KB
+app.config['MAX_CONTENT_LENGTH'] = 300 * 1024
 ALLOWED_EXTENSIONS = {'txt'}
 
+# 解析结果缓存（内存级）
 parsed_results = {}
+# 全局持久化 cookie 文件路径（进程级，复用）
+cookie_file_path = None
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -43,30 +50,47 @@ def get_video_info(youtube_url, cookiefile=None):
         info = ydl.extract_info(youtube_url, download=False)
     return info
 
-def get_best_video_url(youtube_url, cookiefile=None):
+# ===== 渐进式直链选择逻辑（含音轨） =====
+def pick_best_progressive(formats):
+    """
+    从 formats 里挑选同时含音/视频轨的渐进式格式（可直接点击下载），
+    选分辨率高、码率高者优先。
+    """
+    candidates = []
+    for f in formats or []:
+        if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
+            height = f.get('height') or 0
+            tbr = f.get('tbr') or 0  # total bitrate
+            fps = f.get('fps') or 0
+            candidates.append((height, tbr, fps, f))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: (x[0], x[1], x[2]))
+    return candidates[-1][3]
+
+def get_best_progressive_url(youtube_url, cookiefile=None):
+    """
+    返回 (best_progressive_url, info)。若无渐进式直链则 best_progressive_url 为 None。
+    """
     ydl_opts = {
         'quiet': True,
         'noplaylist': True,
-        'format': 'bestvideo+bestaudio/best',
     }
     if cookiefile:
         ydl_opts['cookiefile'] = cookiefile
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(youtube_url, download=False)
-        best_url = info.get('url')
-        if not best_url:
-            for f in info.get('formats', []):
-                if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
-                    best_url = f.get('url')
-                    break
-        return best_url
+    best_prog = pick_best_progressive(info.get('formats'))
+    return (best_prog.get('url') if best_prog else None), info
+# ========================================
 
 INPUT_PAGE = '''
 <!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<title>YouTube批量视频解析下载</title>
+<link rel="shortcut icon" href="https://github.githubassets.com/favicons/favicon.svg">
+<title>YouTube-视频预览</title>
 <style>
  body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
@@ -96,7 +120,7 @@ INPUT_PAGE = '''
 h1 {
   font-weight: 700;
   font-size: 28px;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
   user-select: none;
   color: #222;
 }
@@ -104,7 +128,7 @@ h1 {
 form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 label {
@@ -117,7 +141,6 @@ label {
 }
 
 input[type=file],
-textarea,
 input[type=text] {
   margin: 0 auto;
   font-size: 16px;
@@ -128,30 +151,21 @@ input[type=text] {
   border-radius: 8px;
   box-shadow: inset 0 4px 12px rgb(0 0 0 / 0.1);
   outline: none;
-  resize: vertical;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
   box-sizing: border-box;
 }
 
 input[type=file]:focus,
-textarea:focus,
 input[type=text]:focus {
   border-color: #2563eb;
   box-shadow: 0 0 14px #2563eb;
 }
 
-textarea {
-  height: 160px;
-  min-height: 120px;
-  max-height: 300px;
-  line-height: 1.5;
-}
-
 button {
   width: 220px;
-  padding: 16px 0;
+  padding: 14px 0;
   margin: 0 auto;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   color: white;
   background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
@@ -169,7 +183,7 @@ button:hover {
 }
 
 .error {
-  margin-top: 24px;
+  margin-top: 10px;
   color: #dc2626;
   font-weight: 600;
   user-select: none;
@@ -193,80 +207,53 @@ a.download-link:hover {
 
 /* 响应式适配 */
 @media (max-width: 768px) {
-  .container {
-    padding: 30px 24px;
-  }
-  h1 {
-    font-size: 24px;
-    margin-bottom: 30px;
-  }
-  button {
-    width: 100%;
-    font-size: 20px;
-    padding: 14px 0;
-  }
-  input[type=file],
-  textarea,
-  input[type=text] {
-    width: 100%;
-    max-width: none;
-  }
-  label {
-    max-width: none;
-  }
-  a.download-link {
-    font-size: 16px;
-  }
+  .container { padding: 30px 24px; }
+  h1 { font-size: 24px; margin-bottom: 18px; }
+  button { width: 100%; font-size: 18px; padding: 12px 0; }
+  input[type=file], input[type=text] { width: 100%; max-width: none; }
+  label { max-width: none; }
 }
 
 @media (max-width: 480px) {
-  h1 {
-    font-size: 20px;
-    margin-bottom: 20px;
-  }
-  button {
-    font-size: 18px;
-    padding: 12px 0;
-  }
+  h1 { font-size: 20px; margin-bottom: 14px; }
+  button { font-size: 18px; padding: 12px 0; }
 }
-
 </style>
 </head>
 <body>
   <div class="container">
+    <h1>YouTube 直观解析</h1>
     <form method="post" enctype="multipart/form-data">
       <label>
-上传<a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" style="margin-left:8px; font-size:14px; color:#3b82f6; text-decoration:none;">Cookie</a> 文件（仅限txt，最大100K，选填）：</label>
-
+        上传一次 <a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" style="margin-left:8px; font-size:14px; color:#3b82f6; text-decoration:none;">Cookie</a>（txt，可选）：
+      </label>
       <input type="file" name="cookiefile" accept=".txt" />
 
-      <label>或者直接在这里输入视频链接（多行，每行一个链接）：</label>
-      <textarea name="linktextarea" placeholder="https://www.youtube.com/watch?v=..." ></textarea>
-      
-      <button type="submit">开始解析链接</button>
-<div style="display: flex; justify-content: center; gap: 24px; margin-top: 12px;">
-  <a href="https://railway.com?referralCode=realfake-top" target="_blank"
-     style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
-    服务支持
-  </a>
-  <a href="https://github.com/realfake-top/yt-dlp-youtube-web" target="_blank"
-     style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
-    项目地址
-  </a>
-  <a href="https://cloud.tencent.com/act/cps/redirect?redirect=33387&cps_key=615609c54e8bcced8b02c202a43b5570" target="_blank"
-     style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
-    域名注册
-  </a>
-</div>
+      <label>输入单个视频链接：</label>
+      <input type="text" name="linktextarea" placeholder="https://www.youtube.com/watch?v=..." />
 
+      <button type="submit">开始解析</button>
+
+      <div style="display: flex; justify-content: center; gap: 24px; margin-top: 10px;">
+        <a href="https://github.com/tcq20256/yt-dlp-youtube-web"
+           style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
+          项目地址
+        </a>
+        <a href="https://cloud.tencent.com/act/cps/redirect?redirect=33387&cps_key=615609c54e8bcced8b02c202a43b5570" target="_blank"
+           style="font-size:14px; color:#3b82f6; text-decoration:none; align-self: center;">
+          域名注册
+        </a>
+      </div>
     </form>
+
     {% with messages = get_flashed_messages() %}
       {% if messages %}
         <div class="error">{{ messages[0] }}</div>
       {% endif %}
     {% endwith %}
-    {% if download_url %}
-      <a href="{{ download_url }}" class="download-link" download>⬇️ 点击这里下载解析结果TXT文件</a>
+
+    {% if cookie_ready %}
+      <div style="margin-top:10px; font-size:12px; color:#10b981;">✅ Cookie 已加载，后续解析将自动复用。</div>
     {% endif %}
   </div>
 </body>
@@ -341,14 +328,8 @@ RESULT_PAGE = '''
       min-width: 150px;
       justify-content: center;
     }
-    .download-btn:hover {
-      background-color: #2563eb;
-    }
-    .no-audio-icon {
-      font-size: 16px;
-      color: #f87171;
-      user-select: none;
-    }
+    .download-btn:hover { background-color: #2563eb; }
+    .no-audio-icon { font-size: 16px; color: #f87171; user-select: none; }
     a.back-link {
       display: inline-block;
       margin-top: 20px;
@@ -357,21 +338,13 @@ RESULT_PAGE = '''
       cursor: pointer;
       text-decoration: none;
     }
-    a.back-link:hover {
-      text-decoration: underline;
+    a.back-link:hover { text-decoration: underline; }
+    .tip {
+      margin-top:10px; font-size:12px; color:#666;
     }
-    @media (max-width: 600px) {
-      img {
-        max-width: 100%;
-      }
-      .btn-grid {
-        justify-content: center;
-      }
-      .download-btn {
-        min-width: 120px;
-        font-size: 13px;
-        padding: 10px 16px;
-      }
+    .codebox {
+      padding:10px 12px; background:#111827; color:#e5e7eb; border-radius:6px;
+      display:inline-block; margin-top:6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
   </style>
 </head>
@@ -380,13 +353,28 @@ RESULT_PAGE = '''
   <div class="container">
     <h2>{{ info.title }}</h2>
     <img src="{{ info.thumbnail }}" alt="视频封面" />
+
     <div>
-      <button class="download-btn" onclick="window.open('{{ info.url }}', '_blank')">
-        ⬇️ 下载视频（自动选择最佳画质）
-      </button>
-      <button class="download-btn" onclick="window.open('{{ info.thumbnail }}', '_blank')">
-        🖼️ 下载封面
-      </button>
+      {% if best_progressive_url %}
+        <button class="download-btn" onclick="window.open('{{ best_progressive_url }}', '_blank')">
+          ⬇️ 下载视频（渐进式直链，含音轨）
+        </button>
+        <button class="download-btn" onclick="window.open('{{ info.thumbnail }}', '_blank')">
+          🖼️ 下载封面
+        </button>
+        <div class="tip">提示：直链带有平台签名，通常数小时内过期；长期可复现下载请使用下方命令。</div>
+      {% else %}
+        <div style="padding:12px 16px; border:1px solid #e5e7eb; background:#f9fafb; border-radius:10px; line-height:1.6;">
+          未检测到可用的“含音轨直链”（高码率视频常见分离音/视频流）。<br />
+          推荐使用命令行合并下载（需本地 ffmpeg）：<br />
+          <span class="codebox">yt-dlp -f "bestvideo+bestaudio/best" "{{ page_video_url }}"</span>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="download-btn" onclick="window.open('{{ info.thumbnail }}', '_blank')">
+            🖼️ 下载封面
+          </button>
+        </div>
+      {% endif %}
     </div>
 
     <h3 style="margin-top: 30px;">更多视频分辨率下载选项</h3>
@@ -424,101 +412,61 @@ RESULT_PAGE = '''
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    global cookie_file_path
     error = None
     url = ''
-    download_url = None
 
     if request.method == 'POST':
-        cookie_path = None
+        # ===== 仅当本次上传了 cookie 时才更新全局 cookie_file_path =====
         cookiefile = request.files.get('cookiefile')
         if cookiefile and cookiefile.filename != '':
             if not allowed_file(cookiefile.filename):
                 flash('只允许上传 txt 格式的 cookie 文件。')
-                return render_template_string(INPUT_PAGE, error=None, url='')
+                return render_template_string(INPUT_PAGE, error=None, url='', cookie_ready=bool(cookie_file_path))
             filename = secure_filename(cookiefile.filename)
-            with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                cookiefile.save(tmp.name)
-                cookie_path = tmp.name
-
-        linkfile = request.files.get('linkfile')
-        if linkfile and linkfile.filename != '':
-            # 批量上传链接txt，批量解析，生成下载文件
-            if not allowed_file(linkfile.filename):
-                flash('只允许上传 txt 格式的链接文件。')
-                if cookie_path and os.path.exists(cookie_path):
-                    os.remove(cookie_path)
-                return render_template_string(INPUT_PAGE, error=None, url='')
-            try:
-                content = linkfile.stream.read().decode('utf-8')
-                link_lines = [line.strip() for line in content.splitlines() if line.strip()]
-            except Exception:
-                flash('读取链接文件失败，请确认编码为UTF-8')
-                if cookie_path and os.path.exists(cookie_path):
-                    os.remove(cookie_path)
-                return render_template_string(INPUT_PAGE, error=None, url='')
-
-            if not link_lines:
-                flash('上传的链接文件为空或无有效链接。')
-                if cookie_path and os.path.exists(cookie_path):
-                    os.remove(cookie_path)
-                return render_template_string(INPUT_PAGE, error=None, url='')
-
-            results = []
-            for url_line in link_lines:
-                try:
-                    video_url = get_best_video_url(url_line, cookiefile=cookie_path)
-                    if video_url:
-                        results.append(f"{url_line} {video_url}")
-                    else:
-                        results.append(f"解析失败 {url_line}")
-                except Exception as e:
-                    results.append(f"解析异常 {url_line} 错误: {str(e)}")
-
-            if cookie_path and os.path.exists(cookie_path):
-                os.remove(cookie_path)
-
-            tmp = tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.txt')
-            tmp.write('\n'.join(results))
+            tmp = tempfile.NamedTemporaryFile(delete=False)
+            cookiefile.save(tmp.name)
             tmp.close()
+            # 替换旧 cookie 文件
+            if cookie_file_path and os.path.exists(cookie_file_path):
+                try:
+                    os.remove(cookie_file_path)
+                except Exception:
+                    pass
+            cookie_file_path = tmp.name
 
-            file_id = os.path.basename(tmp.name)
-            parsed_results[file_id] = tmp.name
-            download_url = url_for('download_file', file_id=file_id)
+        # ===== 单行链接输入 =====
+        url = request.form.get('linktextarea', '').strip()
+        if not url:
+            flash('请输入视频链接。')
+            return render_template_string(INPUT_PAGE, error=None, url='', cookie_ready=bool(cookie_file_path))
 
-            return render_template_string(INPUT_PAGE, download_url=download_url, error=None, url='')
+        try:
+            best_url, data = get_best_progressive_url(url, cookiefile=cookie_file_path)
+            parsed_results[url] = {'info': data, 'best_progressive_url': best_url}
+            return redirect(url_for('result', video_url=url))
+        except Exception as e:
+            error = f"解析失败: {e}"
 
-        else:
-            # 没上传路径txt，走单链接解析（文本框）
-            url = request.form.get('linktextarea', '').strip()
-            if not url:
-                flash('请输入视频链接或上传链接文件。')
-                if cookie_path and os.path.exists(cookie_path):
-                    os.remove(cookie_path)
-                return render_template_string(INPUT_PAGE, error=None, url='')
-
-            try:
-                data = get_video_info(url, cookiefile=cookie_path)
-                parsed_results[url] = data
-                if cookie_path and os.path.exists(cookie_path):
-                    os.remove(cookie_path)
-                return redirect(url_for('result', video_url=url))
-            except Exception as e:
-                error = f"解析失败: {e}"
-                if cookie_path and os.path.exists(cookie_path):
-                    os.remove(cookie_path)
-
-    return render_template_string(INPUT_PAGE, error=error, url=url, download_url=download_url)
-
+    return render_template_string(INPUT_PAGE, error=error, url=url, cookie_ready=bool(cookie_file_path))
 
 @app.route('/result')
 def result():
     video_url = request.args.get('video_url')
-    data = parsed_results.get(video_url)
-    if not data:
+    payload = parsed_results.get(video_url)
+    if not payload:
         return redirect(url_for('index'))
-    return render_template_string(RESULT_PAGE, info=data, formats=data.get('formats', []))
+    data = payload['info']
+    best_progressive_url = payload.get('best_progressive_url')
+    return render_template_string(
+        RESULT_PAGE,
+        info=data,
+        formats=data.get('formats', []),
+        best_progressive_url=best_progressive_url,
+        page_video_url=video_url
+    )
 
-
+#（可保留：批量下载结果文件接口；当前页面未使用此功能）
 @app.route('/download/<file_id>')
 def download_file(file_id):
     filepath = parsed_results.get(file_id)
@@ -537,8 +485,6 @@ def download_file(file_id):
         flash("下载文件不存在或已过期")
         return redirect(url_for('index'))
 
-
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
