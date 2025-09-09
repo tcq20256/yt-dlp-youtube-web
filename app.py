@@ -1,26 +1,68 @@
 # app.py —— 单页版：三按钮（最高视频 / 最高音频 / 可播放的音频+视频 非m3u8）
-import subprocess, sys
+import os
+import sys
+import json
+import uuid
+import shutil
+import tempfile
+import subprocess
+from pathlib import Path
+
 def install_packages():
     pkgs = ["Flask>=2.0.0", "yt-dlp>=2025.6.30"]
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", *pkgs])
         print("依赖安装完成！")
     except subprocess.CalledProcessError as e:
-        print(f"安装依赖失败: {e}"); sys.exit(1)
+        print(f"安装依赖失败: {e}")
+        sys.exit(1)
+
 install_packages()
 
-import os, tempfile
-from flask import Flask, request, render_template_string, flash
+from flask import Flask, request, render_template_string, flash, session, redirect, url_for
 import yt_dlp
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key_here"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change_this_to_a_random_secret")
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024  # 仅限制 cookie 文本大小
 ALLOWED_EXT = {"txt"}
 
-last_result = None
-cookie_file_path = None
+# ========== 会话与数据目录 ==========
+DATA_ROOT = Path(tempfile.gettempdir()) / "yt_web"  # 例如 /tmp/yt_web
+DATA_ROOT.mkdir(parents=True, exist_ok=True)
+
+def get_sid():
+    if "sid" not in session:
+        session["sid"] = uuid.uuid4().hex
+    return session["sid"]
+
+def get_user_dir():
+    sid = get_sid()
+    p = DATA_ROOT / sid
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+def user_cookie_path():
+    return get_user_dir() / "cookies.txt"
+
+def user_result_path():
+    return get_user_dir() / "last_result.json"
+
+def save_last_result(payload: dict):
+    p = user_result_path()
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+
+def load_last_result():
+    p = user_result_path()
+    if p.exists():
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
 
 # ---------- 过滤&挑选工具 ----------
 STREAMING_PROTOCOLS = {"m3u8", "m3u8_native", "http_dash_segments", "dash", "ism", "hls"}
@@ -63,7 +105,8 @@ def pick_max_video_only(formats):
             tbr = f.get("tbr") or 0
             fps = f.get("fps") or 0
             cands.append((height, tbr, fps, f))
-    if not cands: return None
+    if not cands:
+        return None
     cands.sort(key=lambda x: (x[0], x[1], x[2]))
     return cands[-1][3]
 
@@ -84,7 +127,8 @@ def pick_max_audio_only(formats):
 
 def extract_info(url, cookiefile=None):
     opts = {"quiet": True, "noplaylist": True}
-    if cookiefile: opts["cookiefile"] = cookiefile
+    if cookiefile:
+        opts["cookiefile"] = cookiefile
     with yt_dlp.YoutubeDL(opts) as ydl:
         return ydl.extract_info(url, download=False)
 
@@ -98,14 +142,8 @@ PAGE = r"""
 <title>YouTube 解析</title>
 <style>
 :root{
-  --brand:#3b82f6;
-  --brand-deep:#2563eb;
-  --bg:#f0f4f8;
-  --card:#ffffff;
-  --text:#222;
-  --muted:#666;
-  --ok:#10b981;
-  --shadow:0 12px 30px rgb(0 0 0 / .08);
+  --brand:#3b82f6; --brand-deep:#2563eb; --bg:#f0f4f8; --card:#ffffff;
+  --text:#222; --muted:#666; --ok:#10b981; --shadow:0 12px 30px rgb(0 0 0 / .08);
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -114,48 +152,31 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Open Sans","Helvetica Neue",sans-serif;
   background:var(--bg); color:var(--text);
 }
-.container{
-  max-width:920px; margin:0 auto; background:var(--card);
-  padding:24px 20px; border-radius:16px; box-shadow:var(--shadow);
-}
+.container{max-width:920px; margin:0 auto; background:var(--card); padding:24px 20px; border-radius:16px; box-shadow:var(--shadow);}
 h1{margin:0 0 12px; font-size:24px; font-weight:800;}
 label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
 .help{font-size:12px; color:var(--muted); margin-top:6px}
 .badge{font-size:12px; color:var(--ok); margin-top:6px}
 .error{margin-top:10px; color:#dc2626; font-weight:600;}
-
 .input, .file{
   width:100%; font-size:16px; padding:10px 12px; border:2px solid var(--brand);
-  border-radius:10px; outline:none; background:#fff;
-  box-shadow:inset 0 4px 12px rgb(0 0 0 / .05);
+  border-radius:10px; outline:none; background:#fff; box-shadow:inset 0 4px 12px rgb(0 0 0 / .05);
 }
 .input:focus, .file:focus{border-color:var(--brand-deep); box-shadow:0 0 10px var(--brand-deep)}
-
 .row{display:flex; flex-wrap:wrap; gap:12px; margin-top:12px;}
 .btn{
-  appearance:none; border:0; cursor:pointer;
-  display:inline-flex; align-items:center; justify-content:center; gap:6px;
-  border-radius:12px; padding:12px 18px; font-weight:800; text-decoration:none;
-  transition:transform .02s ease, background .2s ease, box-shadow .2s ease;
+  appearance:none; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  border-radius:12px; padding:12px 18px; font-weight:800; text-decoration:none; transition:transform .02s ease, background .2s ease, box-shadow .2s ease;
   box-shadow:0 6px 18px rgb(59 130 246 / .5);
 }
 .btn:active{transform:translateY(1px)}
 .btn-primary{background:linear-gradient(90deg, var(--brand) 0%, var(--brand-deep) 100%); color:#fff}
 .btn-primary:hover{background:linear-gradient(90deg, var(--brand-deep) 0%, #1e40af 100%)}
-.btn-ghost{
-  background:#eef2ff; color:var(--brand-deep); box-shadow:none; border:1px solid #dbeafe;
-}
+.btn-ghost{background:#eef2ff; color:var(--brand-deep); box-shadow:none; border:1px solid #dbeafe;}
 .btn-ghost:hover{background:#e0e7ff}
-
-.card{
-  margin-top:16px; background:#f9fafb; border:1px solid #e5e7eb;
-  border-radius:12px; padding:16px;
-}
+.card{margin-top:16px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:16px;}
 .center{text-align:center}
-.thumb{
-  max-width:360px; width:100%; border-radius:12px; box-shadow:0 6px 12px rgb(0 0 0 / .08);
-  margin:10px auto; display:block;
-}
+.thumb{max-width:360px; width:100%; border-radius:12px; box-shadow:0 6px 12px rgb(0 0 0 / .08); margin:10px auto; display:block;}
 .btn-row{display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:10px}
 .dlbtn{min-width:220px}
 .tip{margin-top:8px; font-size:12px; color:var(--muted)}
@@ -164,12 +185,10 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
   background:#111827; color:#e5e7eb; font-family:ui-monospace,Menlo,Consolas,monospace;
 }
 .meta{font-size:12px; opacity:.8; margin-left:6px}
-
-/* —— 响应式优化 —— */
 @media (max-width: 720px){
   .container{padding:18px 14px; border-radius:14px}
   h1{font-size:20px}
-  .btn, .dlbtn{width:100%}         /* 小屏按钮满宽度，易点 */
+  .btn, .dlbtn{width:100%}
   .row{gap:10px}
   .thumb{max-width:100%}
 }
@@ -180,21 +199,23 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
     <h1>YT 视频预览版</h1>
 
     <form method="post" enctype="multipart/form-data">
-      <label>
-        （可选）上传一次 Cookie（txt）
-      </label>
+      <label>（可选）上传一次 Cookie（txt）</label>
       <input class="file" type="file" name="cookiefile" accept=".txt" />
-      {% if cookie_ready %}<div class="badge">✅ Cookie 已加载并将自动复用</div>{% endif %}
-      <div class="help">提示：只需上传一次；需要更换时再上传新文件即可。</div>
+      {% if cookie_ready %}<div class="badge">✅ Cookie 已加载并将自动复用（仅本会话）</div>{% endif %}
+      <div class="help">提示：只需上传一次；需要更换时再上传新文件即可。本页已禁用缓存。</div>
 
       <label style="margin-top:12px;">输入单个视频链接：</label>
       <input class="input" type="text" name="link" placeholder="https://www.youtube.com/watch?v=..." value="{{ link or '' }}" inputmode="url" autocapitalize="off" autocomplete="off" autocorrect="off" />
 
       <div class="row">
         <button type="submit" name="action" value="parse" class="btn btn-primary">开始预览</button>
-        <a class="btn btn-ghost" href="https://github.com/tcq20256/yt-dlp-youtube-web" target="_blank">项目地址</a>
-        <a class="btn btn-ghost" href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank">获取 Cookie 插件</a>
-        
+        <a class="btn btn-ghost" href="https://github.com/tcq20256/yt-dlp-youtube-web" target="_blank" rel="noopener">项目地址</a>
+        <a class="btn btn-ghost" href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener">获取 Cookie 插件</a>
+      </div>
+
+      <div class="row">
+        <button type="submit" formaction="{{ url_for('clear_cookies') }}" class="btn btn-ghost">🧹 清除本会话 Cookie</button>
+        <button type="submit" formaction="{{ url_for('clear_result') }}" class="btn btn-ghost">🧽 清除本会话解析记录</button>
       </div>
 
       {% with messages = get_flashed_messages() %}
@@ -235,7 +256,7 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
       </div>
 
       <div class="center tip">
-        直链接口带签名，可能数小时内过期；长期可复现请使用命令：
+        直链接口可能数小时内过期；长期可复现请使用命令：
         <div class="codebox">
           {% if max_video and max_video.format_id %}
             yt-dlp -f "{{ max_video.format_id }}+bestaudio/best" "{{ link }}"
@@ -255,56 +276,92 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
 </html>
 """
 
-
 # ---------- 路由 ----------
+@app.after_request
+def add_no_cache_headers(resp):
+    # 禁止中间层与浏览器缓存带有个人状态的页面
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global cookie_file_path, last_result
     info = None; max_video = None; max_audio = None; best_av = None
     link = ""
+    cookie_path = user_cookie_path()
 
     if request.method == "POST" and request.form.get("action") == "parse":
-        # Cookie（可选，持久一次）
+        # Cookie（可选，持久到本会话目录）
         f = request.files.get("cookiefile")
         if f and f.filename:
-            if "." not in f.filename or f.filename.rsplit(".",1)[1].lower() not in ALLOWED_EXT:
+            if "." not in f.filename or f.filename.rsplit(".", 1)[1].lower() not in ALLOWED_EXT:
                 flash("只允许上传 txt 格式的 cookie 文件。")
-                return render_template_string(PAGE, cookie_ready=bool(cookie_file_path), info=None, link="")
+                return render_template_string(PAGE, cookie_ready=cookie_path.exists(), info=None, link="")
             tmp = tempfile.NamedTemporaryFile(delete=False)
             f.save(tmp.name); tmp.close()
-            if cookie_file_path and os.path.exists(cookie_file_path):
-                try: os.remove(cookie_file_path)
-                except Exception: pass
-            cookie_file_path = tmp.name
+            shutil.move(tmp.name, cookie_path)  # 覆盖当前会话的 cookie
 
         # 链接
         link = (request.form.get("link") or "").strip()
         if not link:
             flash("请输入视频链接。")
-            return render_template_string(PAGE, cookie_ready=bool(cookie_file_path), info=None, link=link)
+            return render_template_string(PAGE, cookie_ready=cookie_path.exists(), info=None, link=link)
 
         # 解析
         try:
-            data = extract_info(link, cookiefile=cookie_file_path)
-            best_av = pick_best_progressive_playable(data.get("formats"))
-            max_video = pick_max_video_only(data.get("formats"))
-            max_audio = pick_max_audio_only(data.get("formats"))
-            info = data
-            last_result = {"info": data, "link": link, "best_av": best_av, "max_video": max_video, "max_audio": max_audio}
+            data = extract_info(link, cookiefile=str(cookie_path) if cookie_path.exists() else None)
+            best_av_f = pick_best_progressive_playable(data.get("formats"))
+            max_video_f = pick_max_video_only(data.get("formats"))
+            max_audio_f = pick_max_audio_only(data.get("formats"))
+
+            # 准备渲染用的精简字段（不把完整大对象塞进 session）
+            info = {"title": data.get("title"), "thumbnail": data.get("thumbnail")}
+            best_av = best_av_f and {
+                "format_id": best_av_f.get("format_id"),
+                "url": best_av_f.get("url"),
+                "ext": best_av_f.get("ext"),
+                "format_note": best_av_f.get("format_note"),
+                "height": best_av_f.get("height"),
+            }
+            max_video = max_video_f and {
+                "format_id": max_video_f.get("format_id"),
+                "url": max_video_f.get("url"),
+                "ext": max_video_f.get("ext"),
+                "format_note": max_video_f.get("format_note"),
+                "height": max_video_f.get("height"),
+            }
+            max_audio = max_audio_f and {
+                "url": max_audio_f.get("url"),
+                "ext": max_audio_f.get("ext"),
+                "abr": max_audio_f.get("abr"),
+                "tbr": max_audio_f.get("tbr"),
+            }
+
+            # 将当前会话的“最后一次结果”保存在服务器端 JSON（只属于当前会话目录）
+            save_last_result({
+                "link": link,
+                "info": info,
+                "best_av": best_av,
+                "max_video": max_video,
+                "max_audio": max_audio,
+            })
         except Exception as e:
             flash(f"解析失败：{e}")
 
-    # GET 回显
-    if request.method == "GET" and last_result:
-        info = last_result["info"]
-        best_av = last_result.get("best_av")
-        max_video = last_result.get("max_video")
-        max_audio = last_result.get("max_audio")
-        link = last_result["link"]
+    # GET 回显（或 POST 失败/无解析结果时的再次渲染）
+    if request.method == "GET":
+        lr = load_last_result()
+        if lr:
+            link = lr.get("link", "")
+            info = lr.get("info")
+            best_av = lr.get("best_av")
+            max_video = lr.get("max_video")
+            max_audio = lr.get("max_audio")
 
     return render_template_string(
         PAGE,
-        cookie_ready=bool(cookie_file_path),
+        cookie_ready=user_cookie_path().exists(),
         info=info,
         best_av=best_av,
         max_video=max_video,
@@ -312,6 +369,34 @@ def index():
         link=link,
     )
 
+# 清理接口（仅本会话）
+@app.post("/clear_cookies")
+def clear_cookies():
+    p = user_cookie_path()
+    if p.exists():
+        try:
+            p.unlink()
+            flash("已清除当前会话的 Cookie。")
+        except Exception as e:
+            flash(f"清除 Cookie 失败：{e}")
+    else:
+        flash("当前会话没有已保存的 Cookie。")
+    return redirect(url_for("index"))
+
+@app.post("/clear_result")
+def clear_result():
+    p = user_result_path()
+    if p.exists():
+        try:
+            p.unlink()
+            flash("已清除当前会话的解析记录。")
+        except Exception as e:
+            flash(f"清除解析记录失败：{e}")
+    else:
+        flash("当前会话没有可清除的解析记录。")
+    return redirect(url_for("index"))
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    # 生产环境建议用 gunicorn 等前置；此处开发模式关闭 reloader 以避免多进程造成困惑
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
