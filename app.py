@@ -177,14 +177,11 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
 </head>
 <body>
   <div class="container">
-    <h1>YouTube 一键解析</h1>
+    <h1>YT 视频预览版</h1>
 
     <form method="post" enctype="multipart/form-data">
       <label>
         （可选）上传一次 Cookie（txt）
-        <a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" class="btn btn-ghost" style="padding:6px 10px; border-radius:10px; margin-left:8px; font-weight:700;">
-          获取 Cookie 插件
-        </a>
       </label>
       <input class="file" type="file" name="cookiefile" accept=".txt" />
       {% if cookie_ready %}<div class="badge">✅ Cookie 已加载并将自动复用</div>{% endif %}
@@ -194,8 +191,10 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
       <input class="input" type="text" name="link" placeholder="https://www.youtube.com/watch?v=..." value="{{ link or '' }}" inputmode="url" autocapitalize="off" autocomplete="off" autocorrect="off" />
 
       <div class="row">
-        <button type="submit" name="action" value="parse" class="btn btn-primary">开始解析</button>
+        <button type="submit" name="action" value="parse" class="btn btn-primary">开始预览</button>
         <a class="btn btn-ghost" href="https://github.com/tcq20256/yt-dlp-youtube-web" target="_blank">项目地址</a>
+        <a class="btn btn-ghost" href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank">获取 Cookie 插件</a>
+        
       </div>
 
       {% with messages = get_flashed_messages() %}
