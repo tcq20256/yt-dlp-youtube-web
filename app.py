@@ -210,6 +210,7 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
       <div class="row">
         <button type="submit" name="action" value="parse" class="btn btn-primary">开始预览</button>
         <a class="btn btn-ghost" href="https://github.com/tcq20256/yt-dlp-youtube-web" target="_blank" rel="noopener">项目地址</a>
+         <a class="btn btn-ghost" href="https://regurl.cn" target="_blank" rel="noopener">注册域名</a>
         <a class="btn btn-ghost" href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener">获取 Cookie 插件</a>
       </div>
 
