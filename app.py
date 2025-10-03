@@ -9,7 +9,8 @@ import subprocess
 from pathlib import Path
 
 def install_packages():
-    pkgs = ["Flask>=2.0.0", "yt-dlp>=2025.6.30"]
+    # === CHG: 升级到更近版本；若仍遇 nsig 可切 nightly（见下方 NOTE）
+    pkgs = ["Flask>=2.0.0", "yt-dlp>=2025.9.15"]
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", *pkgs])
         print("依赖安装完成！")
@@ -25,7 +26,7 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change_this_to_a_random_secret")
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024  # 仅限制 cookie 文本大小
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # === CHG: 合理限制请求体大小为 5MB（避免超大 cookie 文件）
 ALLOWED_EXT = {"txt"}
 
 # ========== 会话与数据目录 ==========
@@ -125,12 +126,46 @@ def pick_max_audio_only(formats):
             return bag[-1][1]
     return None
 
-def extract_info(url, cookiefile=None):
-    opts = {"quiet": True, "noplaylist": True}
+# === NEW: 支持“优先客户端 + 自动回退”的提取逻辑 ===
+CLIENT_FALLBACK = ["android", "tv", "mweb", "ios", "web"]
+
+def build_ydl_opts(cookiefile: str | None, client: str | None):
+    # yt-dlp API 的 extractor_args 建议使用字典形式
+    # 等价于 CLI: --extractor-args "youtube:player_client=android"
+    ea = {"youtube": {"player_client": [client or "android"]}}
+    opts = {
+        "quiet": True,
+        "noplaylist": True,
+        "force_ipv4": True,                 # 降低 403/连接异常概率
+        "concurrent_fragment_downloads": 1, # SABR/HLS/DASH 时更稳（虽然我们尽量不用它们）
+        "retries": 10,
+        "fragment_retries": 10,
+        "extractor_args": ea,
+    }
     if cookiefile:
         opts["cookiefile"] = cookiefile
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        return ydl.extract_info(url, download=False)
+    return opts
+
+def try_extract_with_fallback(url: str, cookiefile: str | None, prefer_client: str | None):
+    last_exc = None
+    tried = []
+    order = [prefer_client] + [c for c in CLIENT_FALLBACK if c != prefer_client] if prefer_client else CLIENT_FALLBACK
+    for client in order:
+        tried.append(client)
+        try:
+            with yt_dlp.YoutubeDL(build_ydl_opts(cookiefile, client)) as ydl:
+                data = ydl.extract_info(url, download=False)
+                # 打一些标记，便于上层渲染/诊断
+                data["_used_client"] = client
+                return data
+        except Exception as e:
+            last_exc = e
+            continue
+    # 全部失败则抛出最后一次异常，并附带尝试过的客户端
+    raise RuntimeError(f"提取失败，已尝试客户端：{tried}. 最后错误：{last_exc}")
+
+def extract_info(url, cookiefile=None, prefer_client: str | None = None):
+    return try_extract_with_fallback(url, cookiefile, prefer_client)
 
 # ---------- 单页模板 ----------
 PAGE = r"""
@@ -158,11 +193,11 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
 .help{font-size:12px; color:var(--muted); margin-top:6px}
 .badge{font-size:12px; color:var(--ok); margin-top:6px}
 .error{margin-top:10px; color:#dc2626; font-weight:600;}
-.input, .file{
+.input, .file, .select{
   width:100%; font-size:16px; padding:10px 12px; border:2px solid var(--brand);
   border-radius:10px; outline:none; background:#fff; box-shadow:inset 0 4px 12px rgb(0 0 0 / .05);
 }
-.input:focus, .file:focus{border-color:var(--brand-deep); box-shadow:0 0 10px var(--brand-deep)}
+.input:focus, .file:focus, .select:focus{border-color:var(--brand-deep); box-shadow:0 0 10px var(--brand-deep)}
 .row{display:flex; flex-wrap:wrap; gap:12px; margin-top:12px;}
 .btn{
   appearance:none; border:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
@@ -185,6 +220,8 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
   background:#111827; color:#e5e7eb; font-family:ui-monospace,Menlo,Consolas,monospace;
 }
 .meta{font-size:12px; opacity:.8; margin-left:6px}
+.kv{font-size:12px; color:#444; margin-top:8px}
+.kv code{background:#111827;color:#e5e7eb;padding:2px 6px;border-radius:6px}
 @media (max-width: 720px){
   .container{padding:18px 14px; border-radius:14px}
   h1{font-size:20px}
@@ -207,10 +244,18 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
       <label style="margin-top:12px;">输入单个视频链接：</label>
       <input class="input" type="text" name="link" placeholder="https://www.youtube.com/watch?v=..." value="{{ link or '' }}" inputmode="url" autocapitalize="off" autocomplete="off" autocorrect="off" />
 
+      <!-- === NEW: 客户端选择（默认 android），用于规避 SABR 与 nsig 相关问题 -->
+      <label style="margin-top:12px;">客户端（解析优先使用；失败将自动回退）</label>
+      <select class="select" name="client">
+        {% for c in ["android","tv","mweb","ios","web"] %}
+          <option value="{{ c }}" {% if client==c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+
       <div class="row">
         <button type="submit" name="action" value="parse" class="btn btn-primary">开始预览</button>
         <a class="btn btn-ghost" href="https://github.com/tcq20256/yt-dlp-youtube-web" target="_blank" rel="noopener">项目地址</a>
-         <a class="btn btn-ghost" href="https://regurl.cn" target="_blank" rel="noopener">注册域名</a>
+        <a class="btn btn-ghost" href="https://regurl.cn" target="_blank" rel="noopener">注册域名</a>
         <a class="btn btn-ghost" href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener">获取 Cookie 插件</a>
       </div>
 
@@ -265,6 +310,7 @@ label{display:block; margin:12px 0 6px; color:#444; font-size:15px;}
             yt-dlp -f "bestvideo+bestaudio/best" "{{ link }}"
           {% endif %}
         </div>
+        <div class="kv">使用的客户端：<code>{{ info._used_client or "unknown" }}</code></div>
       </div>
 
       <div class="center" style="margin-top:12px;">
@@ -290,6 +336,7 @@ def add_no_cache_headers(resp):
 def index():
     info = None; max_video = None; max_audio = None; best_av = None
     link = ""
+    client = request.form.get("client") or (load_last_result() or {}).get("client") or "android"  # === NEW/CHG
     cookie_path = user_cookie_path()
 
     if request.method == "POST" and request.form.get("action") == "parse":
@@ -298,7 +345,7 @@ def index():
         if f and f.filename:
             if "." not in f.filename or f.filename.rsplit(".", 1)[1].lower() not in ALLOWED_EXT:
                 flash("只允许上传 txt 格式的 cookie 文件。")
-                return render_template_string(PAGE, cookie_ready=cookie_path.exists(), info=None, link="")
+                return render_template_string(PAGE, cookie_ready=cookie_path.exists(), info=None, link="", client=client)
             tmp = tempfile.NamedTemporaryFile(delete=False)
             f.save(tmp.name); tmp.close()
             shutil.move(tmp.name, cookie_path)  # 覆盖当前会话的 cookie
@@ -307,17 +354,21 @@ def index():
         link = (request.form.get("link") or "").strip()
         if not link:
             flash("请输入视频链接。")
-            return render_template_string(PAGE, cookie_ready=cookie_path.exists(), info=None, link=link)
+            return render_template_string(PAGE, cookie_ready=cookie_path.exists(), info=None, link=link, client=client)
 
-        # 解析
+        # 解析（带客户端优先与回退）
         try:
-            data = extract_info(link, cookiefile=str(cookie_path) if cookie_path.exists() else None)
+            data = extract_info(link, cookiefile=str(cookie_path) if cookie_path.exists() else None, prefer_client=client)
             best_av_f = pick_best_progressive_playable(data.get("formats"))
             max_video_f = pick_max_video_only(data.get("formats"))
             max_audio_f = pick_max_audio_only(data.get("formats"))
 
-            # 准备渲染用的精简字段（不把完整大对象塞进 session）
-            info = {"title": data.get("title"), "thumbnail": data.get("thumbnail")}
+            # 准备渲染用的精简字段
+            info = {
+                "title": data.get("title"),
+                "thumbnail": data.get("thumbnail"),
+                "_used_client": data.get("_used_client", client)
+            }
             best_av = best_av_f and {
                 "format_id": best_av_f.get("format_id"),
                 "url": best_av_f.get("url"),
@@ -339,9 +390,9 @@ def index():
                 "tbr": max_audio_f.get("tbr"),
             }
 
-            # 将当前会话的“最后一次结果”保存在服务器端 JSON（只属于当前会话目录）
             save_last_result({
                 "link": link,
+                "client": info["_used_client"],
                 "info": info,
                 "best_av": best_av,
                 "max_video": max_video,
@@ -355,6 +406,7 @@ def index():
         lr = load_last_result()
         if lr:
             link = lr.get("link", "")
+            client = lr.get("client", client)
             info = lr.get("info")
             best_av = lr.get("best_av")
             max_video = lr.get("max_video")
@@ -368,6 +420,7 @@ def index():
         max_video=max_video,
         max_audio=max_audio,
         link=link,
+        client=client,
     )
 
 # 清理接口（仅本会话）
